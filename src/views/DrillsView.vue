@@ -1,14 +1,25 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { state, drillsApi } from '../stores/useStore'
 import ConfirmModal from '../components/ConfirmModal.vue'
 
 const categories = ['Passing', 'Shooting', 'Defending', 'Fitness', 'Tactics']
 const blank = () => ({ name: '', category: 'Passing', duration: 15, difficulty: 'Easy', description: '' })
+const DRAFT_KEY = 'football_drills_form_draft_v1'
 
-const form = ref(blank())
-const editingId = ref(null)
-const showForm = ref(false)
+function loadDraft() {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+const draft = loadDraft()
+const form = ref(draft?.form ?? blank())
+const editingId = ref(draft?.editingId ?? null)
+const showForm = ref(draft?.showForm ?? false)
 const error = ref('')
 const filterCat = ref('All')
 const deleteTarget = ref(null)
@@ -17,6 +28,20 @@ const filtered = computed(() =>
   filterCat.value === 'All' ? state.drills : state.drills.filter((d) => d.category === filterCat.value)
 )
 const totalMinutes = computed(() => filtered.value.reduce((sum, d) => sum + d.duration, 0))
+
+watch([form, editingId, showForm], ([currentForm, currentEditingId, currentShowForm]) => {
+  if (!currentShowForm) {
+    try { localStorage.removeItem(DRAFT_KEY) } catch { /* storage unavailable */ }
+    return
+  }
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({
+      form: currentForm,
+      editingId: currentEditingId,
+      showForm: currentShowForm
+    }))
+  } catch { /* storage unavailable */ }
+}, { deep: true })
 
 function openCreate() { form.value = blank(); editingId.value = null; error.value = ''; showForm.value = true }
 function openEdit(d) { form.value = { ...d }; editingId.value = d.id; error.value = ''; showForm.value = true }

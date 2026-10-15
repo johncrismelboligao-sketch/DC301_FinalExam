@@ -1,14 +1,25 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { state, playersApi } from '../stores/useStore'
 import ConfirmModal from '../components/ConfirmModal.vue'
 
 const positions = ['Goalkeeper', 'Defender', 'Midfielder', 'Forward']
 const blank = () => ({ name: '', position: 'Midfielder', jersey: '', age: '', fitness: 'Fit' })
+const DRAFT_KEY = 'football_players_form_draft_v1'
 
-const form = ref(blank())
-const editingId = ref(null)
-const showForm = ref(false)
+function loadDraft() {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+const draft = loadDraft()
+const form = ref(draft?.form ?? blank())
+const editingId = ref(draft?.editingId ?? null)
+const showForm = ref(draft?.showForm ?? false)
 const error = ref('')
 const search = ref('')
 const deleteTarget = ref(null)
@@ -16,6 +27,20 @@ const deleteTarget = ref(null)
 const filtered = computed(() =>
   state.players.filter((p) => p.name.toLowerCase().includes(search.value.toLowerCase()))
 )
+
+watch([form, editingId, showForm], ([currentForm, currentEditingId, currentShowForm]) => {
+  if (!currentShowForm) {
+    try { localStorage.removeItem(DRAFT_KEY) } catch { /* storage unavailable */ }
+    return
+  }
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({
+      form: currentForm,
+      editingId: currentEditingId,
+      showForm: currentShowForm
+    }))
+  } catch { /* storage unavailable */ }
+}, { deep: true })
 
 function openCreate() { form.value = blank(); editingId.value = null; error.value = ''; showForm.value = true }
 function openEdit(p) { form.value = { ...p }; editingId.value = p.id; error.value = ''; showForm.value = true }
@@ -30,6 +55,7 @@ function save() {
   else playersApi.create(f)
   showForm.value = false
 }
+function cancelForm() { showForm.value = false }
 function confirmDelete() { playersApi.remove(deleteTarget.value.id); deleteTarget.value = null }
 </script>
 
@@ -54,7 +80,7 @@ function confirmDelete() { playersApi.remove(deleteTarget.value.id); deleteTarge
       </label>
     </div>
     <div class="row end">
-      <button type="button" class="btn ghost" @click="showForm = false">Cancel</button>
+      <button type="button" class="btn ghost" @click="cancelForm">Cancel</button>
       <button type="submit" class="btn primary">{{ editingId ? 'Save changes' : 'Add player' }}</button>
     </div>
   </form>

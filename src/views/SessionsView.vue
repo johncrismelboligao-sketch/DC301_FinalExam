@@ -1,14 +1,25 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { state, sessionsApi } from '../stores/useStore'
 import ConfirmModal from '../components/ConfirmModal.vue'
 
 const focusOptions = ['Passing', 'Shooting', 'Defending', 'Fitness', 'Tactics']
 const blank = () => ({ title: '', date: '', location: '', focus: 'Passing', duration: 60, status: 'Planned' })
+const DRAFT_KEY = 'football_sessions_form_draft_v1'
 
-const form = ref(blank())
-const editingId = ref(null)
-const showForm = ref(false)
+function loadDraft() {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+const draft = loadDraft()
+const form = ref(draft?.form ?? blank())
+const editingId = ref(draft?.editingId ?? null)
+const showForm = ref(draft?.showForm ?? false)
 const error = ref('')
 const search = ref('')
 const filterFocus = ref('All')
@@ -20,6 +31,20 @@ const filtered = computed(() =>
       && s.title.toLowerCase().includes(search.value.toLowerCase()))
     .sort((a, b) => a.date.localeCompare(b.date))
 )
+
+watch([form, editingId, showForm], ([currentForm, currentEditingId, currentShowForm]) => {
+  if (!currentShowForm) {
+    try { localStorage.removeItem(DRAFT_KEY) } catch { /* storage unavailable */ }
+    return
+  }
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({
+      form: currentForm,
+      editingId: currentEditingId,
+      showForm: currentShowForm
+    }))
+  } catch { /* storage unavailable */ }
+}, { deep: true })
 
 function openCreate() {
   form.value = blank(); editingId.value = null; error.value = ''; showForm.value = true
